@@ -1,20 +1,16 @@
 import re
 import numpy as np
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
+from typing import List
 
-# with open('dataset_processed.txt') as file:
-#     with open('dataset_processed2.txt', 'w') as file2:
-#         i = 1000
-#         for row in file:
-#             file2.write(row)
-#             i -= 1
-#             if i == 0:
-#                 break
+
+def one_hot_encode(string: str, strings: List[str]):
+    one_hot_encoded = map(lambda s: 1 if s == string else 0, strings)
+    return list(one_hot_encoded)
 
 
 word_tokenizer = re.compile("[A-Z]{2,}(?![a-z])|[A-Z][a-z]+(?=[A-Z])|[\'\w\-]+")
-
-with open('dataset_processed2.txt') as file:
+with open('tweets_subset.txt') as file:
     ar = np.array([])
     for row in file:
         words = word_tokenizer.findall(row)
@@ -48,4 +44,3 @@ print(integer_encoded)
 onehot_encoded = onehot_encoder.fit_transform(integer_encoded)
 print(onehot_encoded)
 print(onehot_encoded.T)
-print(onehot_encoded.shape)
