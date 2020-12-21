@@ -1,19 +1,85 @@
 from typing import List
 import re
+import numpy as np
+from collections import OrderedDict
 
 
-def budget_softmax(element: float, elements: List[float]):
-    return element / sum(elements)
+def softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
 
 
 class NeuralNetwork:
-    def __init__(self):
-        pass
+    def __init__(self, X, y, words_indices: dict):
+        self.N = 10
+        self.X_train = X
+        self.y_train = y
+        self.window_size = 2
+        self.alpha = 0.005
+        self.words_indices = words_indices
+        self.vocabulary = list(words_indices.keys())
+
+        self.W = np.random.uniform(-0.8, 0.8, (len(self.vocabulary), self.N))
+        self.W1 = np.random.uniform(-0.8, 0.8, (self.N, len(self.vocabulary)))
+
+    def forward_propagation(self, X):
+        self.h = np.dot(self.W.T, X).reshape(self.N, 1)
+        self.u = np.dot(self.W1.T, self.h)
+        self.y = softmax(self.u)
+        return self.y
+
+    def backward_propagation(self, t, x):
+        e = self.y - np.asarray(t).reshape(len(self.vocabulary), 1)
+        dEdW1 = np.dot(self.h, e.T)
+        X = np.array(x).reshape(len(self.vocabulary), 1)
+        dEdW = np.dot(X, np.dot(self.W1, e).T)
+        self.W1 = self.W1 - self.alpha * dEdW1
+        self.W = self.W - self.alpha * dEdW
+
+    def calculate_loss(self, word_context):
+        C = 0
+        loss = 0
+        for word_index in range(len(word_context)):
+            if word_context[word_index]:
+                loss -= self.u[word_index][0]
+                C += 1
+            loss += C * np.log(np.sum(np.exp(self.u)))
+        return loss
+
+    def train(self, epochs):
+        for epoch in range(epochs):
+            loss = 0
+            for word_ohe, word_context in zip(self.X_train, self.y_train):
+                self.forward_propagation(word_ohe)
+                self.backward_propagation(word_ohe, word_context)
+                self.loss = self.calculate_loss(word_context)
+            # if epoch % 100 == 0:
+            print("epoch ", epoch, " loss = ", self.loss)
+            self.alpha *= 1 / (1 + self.alpha * epoch)
+
+    def predict(self, target_word, number_of_similar_words):
+        assert target_word in self.vocabulary, 'Word not found in dictionary'
+        word_index = self.words_indices[target_word]
+        prediction = self.forward_propagation(one_hot_encode(word_index, self.vocabulary))
+        output = dict()
+        for i in range(len(self.vocabulary)):
+            output[i] = prediction[i][0]
+        similar_words = []
+        sorted_words = sorted(output.items(), key=lambda x: x[1], reverse=True)
+        print(sorted_words)
+
+        for word, value in sorted_words:
+            similar_words.append(self.vocabulary[word])
+            number_of_similar_words -= 1
+            if number_of_similar_words == 0:
+                break
+        return similar_words
 
 
-def one_hot_encode(string: str, strings: List[str]):
-    one_hot_encoded = map(lambda s: 1 if s == string else 0, strings)
-    return list(one_hot_encoded)
+def one_hot_encode(word_index, vocabulary):
+    X = [0 for i in range(len(vocabulary))]
+    X[word_index] = 1
+    return X
 
 
 def read_file(filepath: str):
@@ -47,10 +113,10 @@ def get_training_data(preprocessed_text_sentences):
                 occurrences[word] += 1
     occurrences = sorted(list(occurrences.keys()))
 
-    vocabulary = {}
+    words_indices = OrderedDict()
     for i in range(len(occurrences)):
-        vocabulary[occurrences[i]] = i
-    vocabulary_length = len(vocabulary)
+        words_indices[occurrences[i]] = i
+    vocabulary_length = len(words_indices)
 
     window_size = 2
     X = []
@@ -61,17 +127,22 @@ def get_training_data(preprocessed_text_sentences):
             center_word_one_hot = [0 for i in range(vocabulary_length)]
             outer_word_one_hot = [0 for i in range(vocabulary_length)]
 
-            center_word_one_hot[vocabulary[sentence[center_word_index]]] = 1
-            for outer_word_index in range(center_word_index - window_size, center_word_index + window_size):
+            center_word_one_hot[words_indices[sentence[center_word_index]]] = 1
+            for outer_word_index in range(center_word_index - window_size, center_word_index + window_size + 1):
                 if 0 <= outer_word_index < len(sentence) and center_word_index != outer_word_index:
-                    outer_word_one_hot[vocabulary[sentence[outer_word_index]]] = 1
+                    outer_word_one_hot[words_indices[sentence[outer_word_index]]] = 1
 
             X.append(center_word_one_hot)
             y.append(outer_word_one_hot)
 
-    return X, y
+    return X, y, words_indices
 
 
-preprocessed_text_sentences = preprocess("I am georgi girev. I am honoured")
-for l in get_training_data(preprocessed_text_sentences):
-    print(l)
+preprocessed_text_sentences = preprocess(
+    "I like eating bananas, apples and oranges. Some apples are red. Bananas are yellow.")
+
+X, y, words_indices = get_training_data(preprocessed_text_sentences)
+NN = NeuralNetwork(X, y, words_indices)
+NN.train(1000)
+similar_words = NN.predict("apples", 2)
+print(similar_words)
