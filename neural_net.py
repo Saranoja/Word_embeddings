@@ -1,7 +1,9 @@
-from typing import List
+from gensim.models import word2vec
 import re
 import numpy as np
 from collections import OrderedDict
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
 
 
 def softmax(x):
@@ -15,7 +17,7 @@ class NeuralNetwork:
         self.X_train = X
         self.y_train = y
         self.window_size = 2
-        self.alpha = 0.005
+        self.alpha = 0.01
         self.words_indices = words_indices
         self.vocabulary = list(words_indices.keys())
         np.random.seed(100)
@@ -29,7 +31,7 @@ class NeuralNetwork:
         self.y = softmax(self.u)
         return self.y
 
-    def backward_propagation(self, t, x):
+    def backward_propagation(self, x, t):
         e = self.y - np.asarray(t).reshape(len(self.vocabulary), 1)
         dEdW1 = np.dot(self.h, e.T)
         X = np.array(x).reshape(len(self.vocabulary), 1)
@@ -46,13 +48,13 @@ class NeuralNetwork:
         self.loss += C * np.log(np.sum(np.exp(self.u)))
 
     def train(self, epochs):
-        for epoch in range(epochs):
+        for epoch in range(1, epochs):
             self.loss = 0
             for word_ohe, word_context in zip(self.X_train, self.y_train):
                 self.forward_propagation(word_ohe)
                 self.backward_propagation(word_ohe, word_context)
                 self.calculate_loss(word_context)
-            if epoch % 100 == 0:
+            if epoch % 5 == 0:
                 print("epoch ", epoch, " loss = ", self.loss)
             self.alpha *= 1 / (1 + self.alpha * epoch)
 
@@ -137,11 +139,46 @@ def get_training_data(preprocessed_text_sentences):
     return X, y, words_indices
 
 
-preprocessed_text_sentences = preprocess(
-    "I like eating bananas, apples and oranges. Some fruit are red. Bananas are yellow.")
+def tsne_plot(model):
+    labels = []
+    tokens = []
 
-X, y, words_indices = get_training_data(preprocessed_text_sentences)
-NN = NeuralNetwork(X, y, words_indices)
-NN.train(1000)
-similar_words = NN.predict("apples", 4)
-print(similar_words)
+    for word in model.wv.vocab:
+        tokens.append(model[word])
+        labels.append(word)
+
+    tsne_model = TSNE(perplexity=40, n_components=2, init='pca', n_iter=2500, random_state=23)
+    new_values = tsne_model.fit_transform(tokens)
+
+    x = []
+    y = []
+    for value in new_values:
+        x.append(value[0])
+        y.append(value[1])
+
+    plt.figure(figsize=(8, 8))
+    for i in range(len(x)):
+        plt.scatter(x[i], y[i])
+        plt.annotate(labels[i],
+                     xy=(x[i], y[i]),
+                     xytext=(5, 2),
+                     textcoords='offset points',
+                     ha='right',
+                     va='bottom')
+    plt.show()
+
+
+with open('snow_white.txt') as text:
+    corpus = text.read()
+    preprocessed_text_sentences = preprocess(corpus)
+
+    X, y, words_indices = get_training_data(preprocessed_text_sentences)
+    NN = NeuralNetwork(X, y, words_indices)
+    NN.train(300)
+    similar_words = NN.predict("red", 4)
+    print(similar_words)
+
+    model = word2vec.Word2Vec(preprocessed_text_sentences, size=10, window=2, min_count=1, workers=4, iter=200,
+                              seed=100, alpha=0.05)
+
+    tsne_plot(model)
