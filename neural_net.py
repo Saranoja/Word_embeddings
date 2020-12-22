@@ -1,7 +1,7 @@
-from typing import List
 import re
 import numpy as np
 from collections import OrderedDict
+from sklearn.manifold import TSNE
 
 
 def softmax(x):
@@ -15,11 +15,11 @@ class NeuralNetwork:
         self.X_train = X
         self.y_train = y
         self.window_size = 2
-        self.alpha = 0.005
+        self.alpha = 0.05
         self.words_indices = words_indices
         self.vocabulary = list(words_indices.keys())
-        np.random.seed(100)
 
+        np.random.seed(100)
         self.W = np.random.uniform(-0.8, 0.8, (len(self.vocabulary), self.N))
         self.W1 = np.random.uniform(-0.8, 0.8, (self.N, len(self.vocabulary)))
 
@@ -29,8 +29,11 @@ class NeuralNetwork:
         self.y = softmax(self.u)
         return self.y
 
-    def backward_propagation(self, t, x):
+    def backward_propagation(self, x, t):
+        # print(t)
+        # print(x)
         e = self.y - np.asarray(t).reshape(len(self.vocabulary), 1)
+        # print(e.T)
         dEdW1 = np.dot(self.h, e.T)
         X = np.array(x).reshape(len(self.vocabulary), 1)
         dEdW = np.dot(X, np.dot(self.W1, e).T)
@@ -46,14 +49,16 @@ class NeuralNetwork:
         self.loss += C * np.log(np.sum(np.exp(self.u)))
 
     def train(self, epochs):
-        for epoch in range(epochs):
+        for epoch in range(1, epochs):
             self.loss = 0
             for word_ohe, word_context in zip(self.X_train, self.y_train):
                 self.forward_propagation(word_ohe)
                 self.backward_propagation(word_ohe, word_context)
                 self.calculate_loss(word_context)
-            if epoch % 100 == 0:
+            if epoch % 10 == 0:
                 print("epoch ", epoch, " loss = ", self.loss)
+            # if epoch == 3:
+            #     break
             self.alpha *= 1 / (1 + self.alpha * epoch)
 
     def predict(self, target_word, number_of_similar_words):
@@ -137,11 +142,17 @@ def get_training_data(preprocessed_text_sentences):
     return X, y, words_indices
 
 
-preprocessed_text_sentences = preprocess(
-    "I like eating bananas, apples and oranges. Some fruit are red. Bananas are yellow.")
+with open('snow_white.txt') as file:
+    corpus = file.read()
+    preprocessed_text_sentences = preprocess(corpus)
 
-X, y, words_indices = get_training_data(preprocessed_text_sentences)
-NN = NeuralNetwork(X, y, words_indices)
-NN.train(1000)
-similar_words = NN.predict("apples", 4)
-print(similar_words)
+    X, y, words_indices = get_training_data(preprocessed_text_sentences)
+    NN = NeuralNetwork(X, y, words_indices)
+    NN.train(200)
+    similar_words = NN.predict("christmastide", 5)
+    print(similar_words)
+    #
+    # X_embedded = TSNE()
+    # X_embedded.fit(X)
+    # print(X_embedded.embedding_)
+
