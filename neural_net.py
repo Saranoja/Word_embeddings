@@ -18,6 +18,7 @@ class NeuralNetwork:
         self.alpha = 0.005
         self.words_indices = words_indices
         self.vocabulary = list(words_indices.keys())
+        np.random.seed(100)
 
         self.W = np.random.uniform(-0.8, 0.8, (len(self.vocabulary), self.N))
         self.W1 = np.random.uniform(-0.8, 0.8, (self.N, len(self.vocabulary)))
@@ -38,23 +39,21 @@ class NeuralNetwork:
 
     def calculate_loss(self, word_context):
         C = 0
-        loss = 0
-        for word_index in range(len(word_context)):
+        for word_index in range(len(self.vocabulary)):
             if word_context[word_index]:
-                loss -= self.u[word_index][0]
+                self.loss -= self.u[word_index][0]
                 C += 1
-            loss += C * np.log(np.sum(np.exp(self.u)))
-        return loss
+        self.loss += C * np.log(np.sum(np.exp(self.u)))
 
     def train(self, epochs):
         for epoch in range(epochs):
-            loss = 0
+            self.loss = 0
             for word_ohe, word_context in zip(self.X_train, self.y_train):
                 self.forward_propagation(word_ohe)
                 self.backward_propagation(word_ohe, word_context)
-                self.loss = self.calculate_loss(word_context)
-            # if epoch % 100 == 0:
-            print("epoch ", epoch, " loss = ", self.loss)
+                self.calculate_loss(word_context)
+            if epoch % 100 == 0:
+                print("epoch ", epoch, " loss = ", self.loss)
             self.alpha *= 1 / (1 + self.alpha * epoch)
 
     def predict(self, target_word, number_of_similar_words):
@@ -66,7 +65,7 @@ class NeuralNetwork:
             output[i] = prediction[i][0]
         similar_words = []
         sorted_words = sorted(output.items(), key=lambda x: x[1], reverse=True)
-        print(sorted_words)
+        # print(sorted_words)
 
         for word, value in sorted_words:
             similar_words.append(self.vocabulary[word])
@@ -139,10 +138,10 @@ def get_training_data(preprocessed_text_sentences):
 
 
 preprocessed_text_sentences = preprocess(
-    "I like eating bananas, apples and oranges. Some apples are red. Bananas are yellow.")
+    "I like eating bananas, apples and oranges. Some fruit are red. Bananas are yellow.")
 
 X, y, words_indices = get_training_data(preprocessed_text_sentences)
 NN = NeuralNetwork(X, y, words_indices)
 NN.train(1000)
-similar_words = NN.predict("apples", 2)
+similar_words = NN.predict("apples", 4)
 print(similar_words)
